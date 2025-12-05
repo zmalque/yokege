@@ -114,7 +114,7 @@ class App:
     life = 3 # 残機
 
     def __init__(self):
-        self.bullets = [Bullet() for _ in range(5)]
+        self.bullets = [Bullet() for _ in range(50)]
         pyxel.run(self.update, self.draw)
 
     def update(self):
@@ -219,6 +219,7 @@ class App:
 
 
 App()
+
 
 
 
