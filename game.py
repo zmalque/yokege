@@ -48,10 +48,17 @@ class Player:
             return True
         return False
 
+    def lootTaken(self, loot):
+        if (pow(self.y - loot.y, 2) + pow(self.x - loot.x, 2) <=
+            pow(self.radius + loot.radius, 2)):
+            return True
+        else:
+            return False
+
 
 # カーソルのライト
 class Light:
-    radius = 35 # 半径
+    radius = 36 # 半径
     color = 7 # 色（白）
 
     def __init__(self):
@@ -89,32 +96,68 @@ class Bullet:
 
 # レーザー
 class Laser:
-    blinkDuration = 21 # 点滅する時間。奇数でなければならない
+    blinkDuration = 20 # 点滅する時間
     laserDuration = 15 # レーザーが出る時間
     width = 5 # 太さ
     
     def __init__(self):
         self.set()
 
-    # レーザーの出現場所をランダムに設定する
+    # レーザーを出現させる
     def set(self):
         self.x = pyxel.rndi(5,195)
         self.y = pyxel.rndi(5,195)
+        self.isBlinking = True # これから点滅するよってやつ
+        self.isShooting = False # まだ撃ってないよってやつ
+        self.blinkTime = 0 # どれくらいのフレーム点滅してるかってやつ
+
+    # レーザーを点滅させるタイマー的な役割
+    def blink(self):
+        if self.blinkTime < self.blinkDuration:
+            self.blinkTime += 1
+        else:
+            self.isBlinking = False # 点滅終了
+            self.isShooting = True # これから撃つよってやつ
+            self.shootTime = 0 # どれくらいのフレーム撃ってるかってやつ
+
+    # レーザーを放つタイマー的な
+    def shoot(self):
+        if self.shootTime < self.laserDuration:
+            self.shootTime += 1
+        else:
+            self.isShooting = False # 発砲終了
+
+
+# 得点や残機をくれる謎のボール
+class Loot:
+    blinkDuration = 21
+    radius = 4
+
+    def __init__(self):
+        self.x = pyxel.rndi(5,195)
+        self.y = pyxel.rndi(5,195)
+        self.isLife = False
+
+    def set(self, life):
+        self.x = pyxel.rndi(5,195)
+        self.y = pyxel.rndi(5,195)
+        self.isLife = False
+        # 残機が減っていた場合、3分の1の確率で効果が残機回復になる
+        if life < 3 and pyxel.rndi(1,3) == 1:
+                self.isLife = True
 
 
 class App:
     player = Player()
     light = Light()
     bullets = [Bullet()]
-    laserBlink = False # 点滅中の間　レーザーを描画するかどうか
-    laserShoot = False # レーザーが放たれてるかどうか
     laser = Laser()
-    blinkFrame = Laser.blinkDuration # レーザー点滅の残りフレーム数
+    loot = Loot()
     points = -1 # 得点
     life = 3 # 残機
 
     def __init__(self):
-        self.bullets = [Bullet() for _ in range(50)]
+        self.bullets = [Bullet() for _ in range(7)]
         pyxel.run(self.update, self.draw)
 
     def update(self):
@@ -140,6 +183,17 @@ class App:
         # カーソルのライトをアップデート
         self.light.update()
 
+        # プレイヤーが得点ボールを拾った際の処理
+        if self.player.lootTaken(self.loot):
+            # ライフボールの場合、残機が増える
+            if self.loot.isLife:
+                self.life += 1
+            else:
+                self.points += pyxel.rndi(12,18)
+            # ボールのリセット
+            self.loot.set(self.life)
+                
+
         # 弾幕の処理
         for b in self.bullets:
             b.move()
@@ -159,27 +213,17 @@ class App:
         if pyxel.frame_count % 300 == 0:
             self.bullets.append(Bullet()) # ついでに弾幕の数を上げる
             self.bullets.append(Bullet())
-            self.laser.set() # ランダムな位置に設定
-            self.laserBlink = True # レーザーを描画するよ
-            self.blinkFrame = Laser.blinkDuration
+            self.laser.set() # レーザーの位置設定＆点滅開始させる
 
-        # 点滅中の処理
-        if self.blinkFrame > 0:
-            self.laserBlink = not self.laserBlink
-            self.blinkFrame -= 1
+        # 点滅のタイマー
+        if self.laser.isBlinking:
+            self.laser.blink()
 
-        # 点滅し終わったよっていう処理
-        if (pyxel.frame_count - Laser.blinkDuration) % 300 == 0:
-            self.laserShoot = True
-
-        # レーザーを撃ってる間、プレイヤーが当たった際の処理
-        if self.laserShoot:
+        # レーザーが放たれてる間、プレイヤーが当たると残機が減るという処理
+        if self.laser.isShooting:
+            self.laser.shoot()
             if self.player.laserHit(self.laser):
                 self.life -= 1
-        
-        # 撃ち終わったよっていう処理
-        if (pyxel.frame_count - (Laser.blinkDuration + Laser.laserDuration)) % 300 == 0:
-            self.laserShoot = False
             
         
     # 描画
@@ -204,14 +248,17 @@ class App:
             pyxel.circ(b.x, b.y, b.radius, 0)
 
         # 点滅中のレーザーの描画
-        if self.laserBlink:
+        if self.laser.isBlinking and self.laser.blinkTime % 2 == 0:
             pyxel.line(self.laser.x, 0, self.laser.x, 200, 0)
             pyxel.line(0, self.laser.y, 200, self.laser.y, 0)
 
         # 放たれてるレーザーの描画
-        if self.laserShoot:
+        if self.laser.isShooting:
             pyxel.rect(self.laser.x -1, 0, self.laser.width, 200, 0)
             pyxel.rect(0, self.laser.y -1, 200, self.laser.width, 0)
+
+        # 謎ボールの描画
+        pyxel.circb(self.loot.x, self.loot.y, self.loot.radius, 0)
 
         # スコア等
         pyxel.text(5, 5, "score: " + str(self.points), 5)
@@ -219,7 +266,6 @@ class App:
 
 
 App()
-
 
 
 
