@@ -10,7 +10,7 @@ class Player:
     normSpeed = 3 # プレイヤーの通常移動速度
     dashSpeed = 25 # ダッシュ中の移動速度
     shiftSpeed = 1 # シフト中の移動速度
-    radius = 5 # 半径
+    radius = 4 # 半径 (実際に表示される半径は1つ大きい)
     color = 11 # 外側の色
     color2 = 0 # 内側の色
     
@@ -34,7 +34,7 @@ class Player:
     # 弾幕にあたったかどうかの処理
     def hit(self, bullet):
         if (pow(self.y - bullet.y, 2) + pow(self.x - bullet.x, 2) <=
-            pow(self.radius + bullet.radius - 1, 2)):
+            pow(self.radius + bullet.radius, 2)):
             return True
         else:
             return False
@@ -196,8 +196,8 @@ class App:
 
         # プレイヤーの描画
         pyxel.circ(self.player.x, self.player.y, 20, 7) # プレイヤー周辺のライト
-        pyxel.circ(self.player.x, self.player.y, self.player.radius, self.player.color)
-        pyxel.circ(self.player.x, self.player.y, self.player.radius-1, self.player.color2)
+        pyxel.circ(self.player.x, self.player.y, self.player.radius+1, self.player.color)
+        pyxel.circ(self.player.x, self.player.y, self.player.radius, self.player.color2)
 
         # 弾幕の描画
         for b in self.bullets:
@@ -219,5 +219,6 @@ class App:
 
 
 App()
+
 
 
