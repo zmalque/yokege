@@ -34,7 +34,7 @@ class Player:
     # 弾幕にあたったかどうかの処理
     def hit(self, bullet):
         if (pow(self.y - bullet.y, 2) + pow(self.x - bullet.x, 2) <=
-            pow(self.radius + bullet.radius, 2)):
+            pow(self.radius + bullet.radius - 1, 2)):
             return True
         else:
             return False
@@ -219,4 +219,5 @@ class App:
 
 
 App()
+
 
