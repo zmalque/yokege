@@ -135,7 +135,7 @@ class Loot:
 
     def __init__(self):
         self.x = pyxel.rndi(5,195)
-        self.y = pyxel.rndi(5,195)
+        self.y = pyxel.rndi(25,195)
         self.isLife = False
 
     def set(self, life):
@@ -266,6 +266,7 @@ class App:
 
 
 App()
+
 
 
 
