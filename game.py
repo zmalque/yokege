@@ -10,6 +10,7 @@ class Player:
     normSpeed = 3 # プレイヤーの通常移動速度
     dashSpeed = 25 # ダッシュ中の移動速度
     shiftSpeed = 1 # シフト中の移動速度
+    iFrames = 21 # 無敵時間（多分奇数でないといけない）
     radius = 4 # 半径 (実際に表示される半径は1つ大きい)
     color = 11 # 外側の色
     color2 = 0 # 内側の色
@@ -18,6 +19,9 @@ class Player:
         self.x = 100
         self.y = 100
         self.speed = Player.normSpeed
+        self.isInvincible = False
+        self.blinkTime = Player.iFrames
+        self.lives = 3 # 残機設定
 
     def moveUp(self):
         self.y -= self.speed
@@ -35,6 +39,7 @@ class Player:
     def hit(self, bullet):
         if (pow(self.y - bullet.y, 2) + pow(self.x - bullet.x, 2) <=
             pow(self.radius + bullet.radius, 2)):
+            self.invincibility()
             return True
         else:
             return False
@@ -43,17 +48,34 @@ class Player:
     def laserHit(self, laser):
         halfWidth = math.floor(laser.width/2)
         if self.x - self.radius - halfWidth <= laser.x <= self.x + self.radius + halfWidth:
+            self.invincibility()
             return True
         if self.y - self.radius - halfWidth <= laser.y <= self.y + self.radius + halfWidth:
             return True
         return False
 
+    # 白玉にあたったかどうかの処理
     def lootTaken(self, loot):
         if (pow(self.y - loot.y, 2) + pow(self.x - loot.x, 2) <=
             pow(self.radius + loot.radius, 2)):
             return True
         else:
             return False
+
+    # 弾とかに当たったとき、こいつがライフ減らしたり無敵にしたり点滅開始させたりする
+    def invincibility(self):
+        if not self.isInvincible:
+            self.isInvincible = True
+            self.blinkTime = 0
+            self.lives -= 1
+
+    # 点滅タイマー
+    def blink(self):
+        if self.blinkTime < self.iFrames:
+            self.blinkTime += 1
+        else:
+            self.isInvincible = False
+        
 
 
 # カーソルのライト
@@ -130,17 +152,17 @@ class Laser:
 
 # 得点や残機をくれる謎のボール
 class Loot:
-    blinkDuration = 21
-    radius = 4
+    blinkDuration = 21 # 白玉が出現した際にこの時間分点滅するシステムを作る予定
+    radius = 4 # 半径
 
     def __init__(self):
         self.x = pyxel.rndi(5,195)
-        self.y = pyxel.rndi(25,195)
+        self.y = pyxel.rndi(30,195)
         self.isLife = False
 
     def set(self, life):
         self.x = pyxel.rndi(5,195)
-        self.y = pyxel.rndi(5,195)
+        self.y = pyxel.rndi(30,195)
         self.isLife = False
         # 残機が減っていた場合、3分の1の確率で効果が残機回復になる
         if life < 3 and pyxel.rndi(1,3) == 1:
@@ -154,7 +176,6 @@ class App:
     laser = Laser()
     loot = Loot()
     points = -1 # 得点
-    life = 3 # 残機
 
     def __init__(self):
         self.bullets = [Bullet() for _ in range(7)]
@@ -162,21 +183,21 @@ class App:
 
     def update(self):
         # 3回以上当たったら終了
-        if self.life <= 0:
-            return
+        if self.player.lives <= 0:
+            return        
         
         # プレイヤーの移動の処理
         if pyxel.btn(pyxel.KEY_SHIFT):
             self.player.speed = Player.shiftSpeed
         if pyxel.btnp(pyxel.KEY_SPACE):
             self.player.speed = Player.dashSpeed
-        if pyxel.btn(pyxel.KEY_W):
+        if pyxel.btn(pyxel.KEY_W) and self.player.y > 0 + self.player.radius:
             self.player.moveUp()
-        if pyxel.btn(pyxel.KEY_A):
+        if pyxel.btn(pyxel.KEY_A) and self.player.x > 0 + self.player.radius:
             self.player.moveLeft()
-        if pyxel.btn(pyxel.KEY_S):
+        if pyxel.btn(pyxel.KEY_S) and self.player.y < 200 - self.player.radius:
             self.player.moveDown()
-        if pyxel.btn(pyxel.KEY_D):
+        if pyxel.btn(pyxel.KEY_D) and self.player.x < 200 - self.player.radius:
             self.player.moveRight()
         self.player.speed = Player.normSpeed
 
@@ -187,11 +208,11 @@ class App:
         if self.player.lootTaken(self.loot):
             # ライフボールの場合、残機が増える
             if self.loot.isLife:
-                self.life += 1
+                self.player.lives += 1
             else:
                 self.points += pyxel.rndi(12,18)
             # ボールのリセット
-            self.loot.set(self.life)
+            self.loot.set(self.player.lives)
                 
 
         # 弾幕の処理
@@ -200,7 +221,6 @@ class App:
             # 当たったときの処理
             if self.player.hit(b):
                 b.restart()
-                self.life -= 1
             # 画面下側に行ったときの処理
             elif b.y >= 200:
                 b.restart()
@@ -222,14 +242,16 @@ class App:
         # レーザーが放たれてる間、プレイヤーが当たると残機が減るという処理
         if self.laser.isShooting:
             self.laser.shoot()
-            if self.player.laserHit(self.laser):
-                self.life -= 1
+
+        # プレイヤーが無敵状態の時の点滅処理
+        if self.player.isInvincible:
+            self.player.blink()
             
         
     # 描画
     def draw(self):
         # ゲームオーバーの表示
-        if self.life <= 0:
+        if self.player.lives <= 0:
             pyxel.text(85, 100, "Game Over", 8)
             return
         
@@ -240,8 +262,9 @@ class App:
 
         # プレイヤーの描画
         pyxel.circ(self.player.x, self.player.y, 20, 7) # プレイヤー周辺のライト
-        pyxel.circ(self.player.x, self.player.y, self.player.radius+1, self.player.color)
-        pyxel.circ(self.player.x, self.player.y, self.player.radius, self.player.color2)
+        if self.player.blinkTime % 2 != 0:
+            pyxel.circ(self.player.x, self.player.y, self.player.radius+1, self.player.color)
+            pyxel.circ(self.player.x, self.player.y, self.player.radius, self.player.color2)
 
         # 弾幕の描画
         for b in self.bullets:
@@ -262,11 +285,10 @@ class App:
 
         # スコア等
         pyxel.text(5, 5, "score: " + str(self.points), 5)
-        pyxel.text(5, 11, "lives: " + str(self.life), 5)
+        pyxel.text(5, 11, "lives: " + str(self.player.lives), 5)
 
 
 App()
-
 
 
 
